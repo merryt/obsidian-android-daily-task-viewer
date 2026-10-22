@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Obsidian Daily Note</string>
+    <string name="widget_description">Displays the contents of today\'s Obsidian daily note with direct deep links.</string>
+    <string name="widget_title">Today\'s Note</string>
+    <string name="widget_no_vault">No vault configured. Tap to setup.</string>
+    <string name="widget_note_not_found">No note found for today (%1$s). Tap to open Obsidian.</string>
+    <string name="widget_refresh">Refresh note</string>
+    <string name="widget_empty_note">(Note is empty)</string>
+    <string name="vault_folder_label">Obsidian Vault Folder</string>
+    <string name="vault_name_label">Vault Name</string>
+    <string name="daily_folder_label">Daily Notes Subfolder (e.g. Daily Notes)</string>
+    <string name="date_format_label">Date Format (e.g. yyyy-MM-dd)</string>
+</resources>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="obsidian_purple">#7C3AED</color>
+    <color name="obsidian_purple_light">#A78BFA</color>
+    <color name="obsidian_purple_dark">#5B21B6</color>
+    <color name="obsidian_bg">#181824</color>
+    <color name="obsidian_surface">#222233</color>
+    <color name="obsidian_surface_variant">#2E2E44</color>
+    <color name="obsidian_text">#E2E8F0</color>
+    <color name="obsidian_text_secondary">#94A3B8</color>
+    <color name="obsidian_accent">#38BDF8</color>
+    <color name="obsidian_checkbox">#818CF8</color>
+</resources>
