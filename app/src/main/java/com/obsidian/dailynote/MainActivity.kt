@@ -116,6 +116,15 @@ class MainActivity : ComponentActivity() {
                 val glanceManager = GlanceAppWidgetManager(context)
                 val glanceIds = glanceManager.getGlanceIds(DailyNoteGlanceWidget::class.java)
                 for (glanceId in glanceIds) {
+                    androidx.glance.appwidget.state.updateAppWidgetState(
+                        context,
+                        androidx.glance.state.PreferencesGlanceStateDefinition,
+                        glanceId
+                    ) { prefs ->
+                        val mutable = prefs.toMutablePreferences()
+                        mutable[DailyNoteGlanceWidget.IS_REFRESHING_KEY] = false
+                        mutable
+                    }
                     DailyNoteGlanceWidget().update(context, glanceId)
                 }
             } catch (e: Exception) {

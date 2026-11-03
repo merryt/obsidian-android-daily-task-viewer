@@ -52,8 +52,32 @@ object MarkdownSanitizer {
     private val HEADING_1_REGEX = Regex("""^#\s+(.*)$""")
     private val HEADING_2_REGEX = Regex("""^##\s+(.*)$""")
     private val HEADING_3_REGEX = Regex("""^###+\s+(.*)$""")
-    private val BLOCKQUOTE_REGEX = Regex("""^>\s?(.*)$""")
+    private val BLOCKQUOTE_REGEX = Regex("""^(\s*)>\s?(.*)$""")
     private val HORIZONTAL_RULE_REGEX = Regex("""^(\*{3,}|-{3,}|_{3,})$""")
+
+    /**
+     * Calculates the indentation level from leading whitespace.
+     * Each tab character (\t) represents 1 indentation level.
+     * Every 2 spaces represents 1 indentation level.
+     * Handles mixed spaces and tabs.
+     */
+    fun calculateIndentLevel(whitespace: String): Int {
+        if (whitespace.isEmpty()) return 0
+        var tabs = 0
+        var spaces = 0
+        for (ch in whitespace) {
+            when (ch) {
+                '\t' -> tabs++
+                ' ' -> spaces++
+            }
+        }
+        return tabs + (spaces / 2)
+    }
+
+    private fun getLeadingWhitespace(line: String): String {
+        val end = line.indexOfFirst { it != ' ' && it != '\t' }
+        return if (end == -1) line else line.substring(0, end)
+    }
 
     /**
      * Strips YAML frontmatter from Obsidian markdown.
@@ -207,44 +231,47 @@ object MarkdownSanitizer {
                 }
                 TASK_TODO_REGEX.matches(rawLine) -> {
                     val match = TASK_TODO_REGEX.find(rawLine)!!
-                    val indent = match.groupValues[1].length / 2
+                    val indent = calculateIndentLevel(match.groupValues[1])
                     val text = cleanInlineFormatting(match.groupValues[2])
                     blocks.add(SanitizedBlock(BlockType.TASK_TODO, text, indent))
                 }
                 TASK_DONE_REGEX.matches(rawLine) -> {
                     if (!hideCompletedTasks) {
                         val match = TASK_DONE_REGEX.find(rawLine)!!
-                        val indent = match.groupValues[1].length / 2
+                        val indent = calculateIndentLevel(match.groupValues[1])
                         val text = cleanInlineFormatting(match.groupValues[2])
                         blocks.add(SanitizedBlock(BlockType.TASK_DONE, text, indent))
                     }
                 }
                 TASK_OTHER_REGEX.matches(rawLine) -> {
                     val match = TASK_OTHER_REGEX.find(rawLine)!!
-                    val indent = match.groupValues[1].length / 2
+                    val indent = calculateIndentLevel(match.groupValues[1])
                     val text = cleanInlineFormatting(match.groupValues[2])
                     blocks.add(SanitizedBlock(BlockType.TASK_TODO, text, indent))
                 }
                 BULLET_REGEX.matches(rawLine) -> {
                     val match = BULLET_REGEX.find(rawLine)!!
-                    val indent = match.groupValues[1].length / 2
+                    val indent = calculateIndentLevel(match.groupValues[1])
                     val text = cleanInlineFormatting(match.groupValues[2])
                     blocks.add(SanitizedBlock(BlockType.BULLET_ITEM, text, indent))
                 }
                 NUMBERED_LIST_REGEX.matches(rawLine) -> {
                     val match = NUMBERED_LIST_REGEX.find(rawLine)!!
-                    val indent = match.groupValues[1].length / 2
+                    val indent = calculateIndentLevel(match.groupValues[1])
                     val num = match.groupValues[2]
                     val text = cleanInlineFormatting(match.groupValues[3])
                     blocks.add(SanitizedBlock(BlockType.NUMBERED_ITEM, "$num $text", indent))
                 }
-                BLOCKQUOTE_REGEX.matches(trimmed) -> {
-                    val match = BLOCKQUOTE_REGEX.find(trimmed)!!
-                    val text = cleanInlineFormatting(match.groupValues[1])
-                    blocks.add(SanitizedBlock(BlockType.BLOCKQUOTE, text))
+                BLOCKQUOTE_REGEX.matches(rawLine) -> {
+                    val match = BLOCKQUOTE_REGEX.find(rawLine)!!
+                    val indent = calculateIndentLevel(match.groupValues[1])
+                    val text = cleanInlineFormatting(match.groupValues[2])
+                    blocks.add(SanitizedBlock(BlockType.BLOCKQUOTE, text, indent))
                 }
                 else -> {
-                    blocks.add(SanitizedBlock(BlockType.PARAGRAPH, cleanInlineFormatting(trimmed)))
+                    val whitespace = getLeadingWhitespace(rawLine)
+                    val indent = calculateIndentLevel(whitespace)
+                    blocks.add(SanitizedBlock(BlockType.PARAGRAPH, cleanInlineFormatting(trimmed), indent))
                 }
             }
         }
@@ -279,9 +306,9 @@ object MarkdownSanitizer {
                 BlockType.TASK_DONE -> sb.append(indent).append("☑ ").append(block.text).append("\n")
                 BlockType.BULLET_ITEM -> sb.append(indent).append("• ").append(block.text).append("\n")
                 BlockType.NUMBERED_ITEM -> sb.append(indent).append(block.text).append("\n")
-                BlockType.BLOCKQUOTE -> sb.append("│ ").append(block.text).append("\n")
+                BlockType.BLOCKQUOTE -> sb.append(indent).append("│ ").append(block.text).append("\n")
                 BlockType.DIVIDER -> sb.append("───────────────\n")
-                BlockType.PARAGRAPH -> sb.append(block.text).append("\n")
+                BlockType.PARAGRAPH -> sb.append(indent).append(block.text).append("\n")
                 BlockType.EMPTY_LINE -> sb.append("\n")
             }
         }

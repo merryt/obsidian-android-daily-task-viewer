@@ -2,14 +2,18 @@ package com.obsidian.dailynote.widget
 
 import android.content.Context
 import android.content.Intent
+import android.widget.RemoteViews
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.action.clickable
+import androidx.glance.appwidget.AndroidRemoteViews
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
@@ -18,6 +22,7 @@ import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
+import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
@@ -29,6 +34,8 @@ import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
+import androidx.glance.state.GlanceStateDefinition
+import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -47,7 +54,11 @@ import java.time.format.FormatStyle
 
 class DailyNoteGlanceWidget : GlanceAppWidget() {
 
+    override val stateDefinition: GlanceStateDefinition<*> = PreferencesGlanceStateDefinition
+
     companion object {
+        val IS_REFRESHING_KEY = booleanPreferencesKey("is_refreshing")
+
         private val ColorBg = ColorProvider(Color(0xFF161622))
         private val ColorHeader = ColorProvider(Color(0xFF202030))
         private val ColorCard = ColorProvider(Color(0xFF1E1E2D))
@@ -67,6 +78,9 @@ class DailyNoteGlanceWidget : GlanceAppWidget() {
         val friendlyDate = today.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
 
         provideContent {
+            val glancePrefs = currentState<Preferences>()
+            val isRefreshing = glancePrefs[IS_REFRESHING_KEY] ?: false
+
             Box(
                 modifier = GlanceModifier
                     .fillMaxSize()
@@ -77,8 +91,10 @@ class DailyNoteGlanceWidget : GlanceAppWidget() {
                 Column(modifier = GlanceModifier.fillMaxSize()) {
                     // Top Bar: Obsidian Badge, Date, and Actions
                     HeaderBar(
+                        context = context,
                         dateString = friendlyDate,
                         vaultName = prefs.vaultName,
+                        isRefreshing = isRefreshing,
                         onOpenSettings = actionStartActivity(Intent(context, MainActivity::class.java))
                     )
 
@@ -158,8 +174,10 @@ class DailyNoteGlanceWidget : GlanceAppWidget() {
 
     @androidx.compose.runtime.Composable
     private fun HeaderBar(
+        context: Context,
         dateString: String,
         vaultName: String,
+        isRefreshing: Boolean,
         onOpenSettings: androidx.glance.action.Action
     ) {
         Row(
@@ -211,14 +229,21 @@ class DailyNoteGlanceWidget : GlanceAppWidget() {
 
             Spacer(modifier = GlanceModifier.width(12.dp))
 
-            // Refresh Button
-            Image(
-                provider = ImageProvider(R.drawable.ic_refresh),
-                contentDescription = "Refresh",
-                modifier = GlanceModifier
-                    .size(22.dp)
-                    .clickable(actionRunCallback<RefreshDailyNoteAction>())
-            )
+            // Refresh Button (animates while updating)
+            if (isRefreshing) {
+                AndroidRemoteViews(
+                    remoteViews = RemoteViews(context.packageName, R.layout.widget_refresh_spinner),
+                    modifier = GlanceModifier.size(22.dp)
+                )
+            } else {
+                Image(
+                    provider = ImageProvider(R.drawable.ic_refresh),
+                    contentDescription = "Refresh",
+                    modifier = GlanceModifier
+                        .size(22.dp)
+                        .clickable(actionRunCallback<RefreshDailyNoteAction>())
+                )
+            }
         }
     }
 
@@ -252,7 +277,7 @@ class DailyNoteGlanceWidget : GlanceAppWidget() {
 
     @androidx.compose.runtime.Composable
     private fun BlockItem(block: SanitizedBlock) {
-        val indentPadding = (block.indentLevel * 12).dp
+        val indentPadding = (block.indentLevel * 16).dp
 
         when (block.type) {
             BlockType.HEADING_1 -> {
@@ -292,9 +317,12 @@ class DailyNoteGlanceWidget : GlanceAppWidget() {
                 Row(
                     modifier = GlanceModifier
                         .fillMaxWidth()
-                        .padding(start = indentPadding, top = 2.dp, bottom = 2.dp),
+                        .padding(top = 2.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (block.indentLevel > 0) {
+                        Spacer(modifier = GlanceModifier.width(indentPadding))
+                    }
                     Text(
                         text = "☐",
                         style = TextStyle(
@@ -317,9 +345,12 @@ class DailyNoteGlanceWidget : GlanceAppWidget() {
                 Row(
                     modifier = GlanceModifier
                         .fillMaxWidth()
-                        .padding(start = indentPadding, top = 1.dp, bottom = 1.dp),
+                        .padding(top = 1.dp, bottom = 1.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (block.indentLevel > 0) {
+                        Spacer(modifier = GlanceModifier.width(indentPadding))
+                    }
                     Text(
                         text = "☑",
                         style = TextStyle(
@@ -341,8 +372,12 @@ class DailyNoteGlanceWidget : GlanceAppWidget() {
                 Row(
                     modifier = GlanceModifier
                         .fillMaxWidth()
-                        .padding(start = indentPadding, top = 1.dp, bottom = 1.dp)
+                        .padding(top = 1.dp, bottom = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (block.indentLevel > 0) {
+                        Spacer(modifier = GlanceModifier.width(indentPadding))
+                    }
                     Text(
                         text = "•",
                         style = TextStyle(
@@ -362,21 +397,34 @@ class DailyNoteGlanceWidget : GlanceAppWidget() {
                 }
             }
             BlockType.NUMBERED_ITEM -> {
-                Text(
-                    text = block.text,
-                    style = TextStyle(
-                        color = ColorTextPrimary,
-                        fontSize = 12.sp
-                    ),
-                    modifier = GlanceModifier.padding(start = indentPadding, top = 1.dp, bottom = 1.dp)
-                )
+                Row(
+                    modifier = GlanceModifier
+                        .fillMaxWidth()
+                        .padding(top = 1.dp, bottom = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (block.indentLevel > 0) {
+                        Spacer(modifier = GlanceModifier.width(indentPadding))
+                    }
+                    Text(
+                        text = block.text,
+                        style = TextStyle(
+                            color = ColorTextPrimary,
+                            fontSize = 12.sp
+                        )
+                    )
+                }
             }
             BlockType.BLOCKQUOTE -> {
                 Row(
                     modifier = GlanceModifier
                         .fillMaxWidth()
-                        .padding(start = 4.dp, top = 2.dp, bottom = 2.dp)
+                        .padding(start = 4.dp, top = 2.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (block.indentLevel > 0) {
+                        Spacer(modifier = GlanceModifier.width(indentPadding))
+                    }
                     Box(
                         modifier = GlanceModifier
                             .width(3.dp)
@@ -403,14 +451,23 @@ class DailyNoteGlanceWidget : GlanceAppWidget() {
                 ) {}
             }
             BlockType.PARAGRAPH -> {
-                Text(
-                    text = block.text,
-                    style = TextStyle(
-                        color = ColorTextPrimary,
-                        fontSize = 12.sp
-                    ),
-                    modifier = GlanceModifier.padding(top = 1.dp, bottom = 1.dp)
-                )
+                Row(
+                    modifier = GlanceModifier
+                        .fillMaxWidth()
+                        .padding(top = 1.dp, bottom = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (block.indentLevel > 0) {
+                        Spacer(modifier = GlanceModifier.width(indentPadding))
+                    }
+                    Text(
+                        text = block.text,
+                        style = TextStyle(
+                            color = ColorTextPrimary,
+                            fontSize = 12.sp
+                        )
+                    )
+                }
             }
             BlockType.EMPTY_LINE -> {
                 Spacer(modifier = GlanceModifier.height(4.dp))

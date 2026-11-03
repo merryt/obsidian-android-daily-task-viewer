@@ -197,4 +197,105 @@ class MarkdownSanitizerTest {
         assertTrue(result.contains("Active todo"))
         assertFalse(result.contains("Finished item"))
     }
+
+    @Test
+    fun calculateIndentLevel_correctlyCalculatesTabsAndSpaces() {
+        assertEquals(0, MarkdownSanitizer.calculateIndentLevel(""))
+        assertEquals(1, MarkdownSanitizer.calculateIndentLevel("\t"))
+        assertEquals(2, MarkdownSanitizer.calculateIndentLevel("\t\t"))
+        assertEquals(1, MarkdownSanitizer.calculateIndentLevel("  "))
+        assertEquals(2, MarkdownSanitizer.calculateIndentLevel("    "))
+        assertEquals(2, MarkdownSanitizer.calculateIndentLevel("\t  "))
+        assertEquals(3, MarkdownSanitizer.calculateIndentLevel("\t\t\t"))
+    }
+
+    @Test
+    fun parseBlocks_preservesIndentation_forTasksWithTabsAndSpaces() {
+        val input = """
+            - [ ] Top level task
+            	- [ ] Subtask with tab
+            		- [ ] Sub-subtask with two tabs
+              - [ ] Subtask with two spaces
+                - [ ] Subtask with four spaces
+        """.trimIndent()
+
+        val blocks = MarkdownSanitizer.parseBlocks(input)
+        assertEquals(5, blocks.size)
+
+        assertEquals("Top level task", blocks[0].text)
+        assertEquals(0, blocks[0].indentLevel)
+
+        assertEquals("Subtask with tab", blocks[1].text)
+        assertEquals(1, blocks[1].indentLevel)
+
+        assertEquals("Sub-subtask with two tabs", blocks[2].text)
+        assertEquals(2, blocks[2].indentLevel)
+
+        assertEquals("Subtask with two spaces", blocks[3].text)
+        assertEquals(1, blocks[3].indentLevel)
+
+        assertEquals("Subtask with four spaces", blocks[4].text)
+        assertEquals(2, blocks[4].indentLevel)
+    }
+
+    @Test
+    fun parseBlocks_preservesIndentation_forBulletsAndNumberedItems() {
+        val input = """
+            - Parent bullet
+            	- Child bullet tab
+              - Child bullet spaces
+            1. Parent number
+            	1. Child number tab
+              2. Child number spaces
+        """.trimIndent()
+
+        val blocks = MarkdownSanitizer.parseBlocks(input)
+        assertEquals(6, blocks.size)
+
+        assertEquals(0, blocks[0].indentLevel)
+        assertEquals(1, blocks[1].indentLevel)
+        assertEquals(1, blocks[2].indentLevel)
+        assertEquals(0, blocks[3].indentLevel)
+        assertEquals(1, blocks[4].indentLevel)
+        assertEquals(1, blocks[5].indentLevel)
+    }
+
+    @Test
+    fun parseBlocks_preservesIndentation_forParagraphsAndNotes() {
+        val input = """
+            - [ ] Complete feature
+            	Remember to test on Android
+                Additional note with spaces
+        """.trimIndent()
+
+        val blocks = MarkdownSanitizer.parseBlocks(input)
+        assertEquals(3, blocks.size)
+
+        assertEquals(BlockType.TASK_TODO, blocks[0].type)
+        assertEquals(0, blocks[0].indentLevel)
+
+        assertEquals(BlockType.PARAGRAPH, blocks[1].type)
+        assertEquals("Remember to test on Android", blocks[1].text)
+        assertEquals(1, blocks[1].indentLevel)
+
+        assertEquals(BlockType.PARAGRAPH, blocks[2].type)
+        assertEquals("Additional note with spaces", blocks[2].text)
+        assertEquals(2, blocks[2].indentLevel)
+    }
+
+    @Test
+    fun sanitizeToString_showsWhitespaceForIndentedItems() {
+        val input = """
+            - [ ] Top task
+            	- [ ] Sub task
+            		- Note under subtask
+        """.trimIndent()
+
+        val result = MarkdownSanitizer.sanitizeToString(input)
+        val lines = result.lines()
+
+        assertEquals("☐ Top task", lines[0])
+        assertEquals("  ☐ Sub task", lines[1])
+        assertEquals("    • Note under subtask", lines[2])
+    }
 }
